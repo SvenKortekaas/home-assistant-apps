@@ -28,7 +28,7 @@ The apps below then appear in the store under **Cyberjunky's Home Assistant Apps
 
 ## Apps
 
-### [Dishylink](app-dishylink/)
+### <img src="app-dishylink/icon.png" alt="" width="36" align="absmiddle"> [Dishylink](app-dishylink/)
 
 ![Version][dishylink-version-shield]
 ![Supports aarch64 Architecture][aarch64-shield]
@@ -41,7 +41,7 @@ keeps flash writes low by recording in RAM.
 
 [:books: Documentation](app-dishylink/DOCS.md) · [:memo: Changelog](app-dishylink/CHANGELOG.md) · [:lock: Security](app-dishylink/SECURITY.md)
 
-### [pgAdmin 4](app-pgadmin4/)
+### <img src="app-pgadmin4/icon.png" alt="" width="36" align="absmiddle"> [pgAdmin 4](app-pgadmin4/)
 
 ![Version][pgadmin4-version-shield]
 ![Supports aarch64 Architecture][aarch64-shield]
@@ -50,9 +50,9 @@ keeps flash writes low by recording in RAM.
 Web-based administration for PostgreSQL, opened from the sidebar. Registers the TimescaleDB
 app automatically. Apache 2.0, derived from an earlier add-on (see its NOTICE).
 
-[:books: Documentation](app-pgadmin4/DOCS.md) · [:memo: Changelog](app-pgadmin4/CHANGELOG.md)
+[:books: Documentation](app-pgadmin4/DOCS.md) · [:memo: Changelog](app-pgadmin4/CHANGELOG.md) · [:lock: Security](app-pgadmin4/SECURITY.md)
 
-### [TimescaleDB](app-timescaledb/)
+### <img src="app-timescaledb/icon.png" alt="" width="36" align="absmiddle"> [TimescaleDB](app-timescaledb/)
 
 ![Version][timescaledb-version-shield]
 ![Supports aarch64 Architecture][aarch64-shield]
@@ -61,7 +61,20 @@ app automatically. Apache 2.0, derived from an earlier add-on (see its NOTICE).
 PostgreSQL with the TimescaleDB time-series extension plus PostGIS, pgvector, pg_cron,
 pgAgent and TimescaleDB Toolkit. Apache 2.0, derived from an earlier add-on (see its NOTICE).
 
-[:books: Documentation](app-timescaledb/DOCS.md) · [:memo: Changelog](app-timescaledb/CHANGELOG.md)
+[:books: Documentation](app-timescaledb/DOCS.md) · [:memo: Changelog](app-timescaledb/CHANGELOG.md) · [:lock: Security](app-timescaledb/SECURITY.md)
+
+### <img src="app-xknx-editor/icon.png" alt="" width="36" align="absmiddle"> [XKNX Editor](app-xknx-editor/)
+
+![Version][xknx-editor-version-shield]
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+
+Web-based KNX project editor built on [XKNX Editor](https://github.com/knx-ai/xknx-editor) and
+the [xknx](https://github.com/XKNX/xknx) library: import or create a `.knxproj`, set parameters,
+link group objects, program devices over a KNX/IP gateway, watch and record the bus, and let an
+LLM client work on the project through its MCP server. Experimental, GPL-2.0-only.
+
+[:books: Documentation](app-xknx-editor/DOCS.md) · [:memo: Changelog](app-xknx-editor/CHANGELOG.md) · [:lock: Security](app-xknx-editor/SECURITY.md)
 
 ## Releases
 
@@ -122,3 +135,4 @@ software each app packages keeps its own license, noted in the app's README.
 [pgadmin4-version-shield]: https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcyberjunky%2Fhome-assistant-apps%2Fmain%2Fapp-pgadmin4%2Fconfig.yaml&query=%24.version&label=version&style=for-the-badge
 [timescaledb-version-shield]: https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcyberjunky%2Fhome-assistant-apps%2Fmain%2Fapp-timescaledb%2Fconfig.yaml&query=%24.version&label=version&style=for-the-badge
 [dishylink-version-shield]: https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcyberjunky%2Fhome-assistant-apps%2Fmain%2Fapp-dishylink%2Fconfig.yaml&query=%24.version&label=version&style=for-the-badge
+[xknx-editor-version-shield]: https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcyberjunky%2Fhome-assistant-apps%2Fmain%2Fapp-xknx-editor%2Fconfig.yaml&query=%24.version&label=version&style=for-the-badge

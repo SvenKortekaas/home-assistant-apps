@@ -219,5 +219,20 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Claude Code project notes
+# Claude Code and other AI assistant files
 CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# app-xknx-editor: local build leftovers (vendored dev venv, packed tarball, frontend build)
+app-xknx-editor/vendor/xknx-editor/.venv/
+app-xknx-editor/vendor/xknx-editor/config/
+app-xknx-editor/vendor/xknx-editor/knxprod/
+app-xknx-editor/vendor/xknx-editor.tar.gz
+app-xknx-editor/frontend/node_modules/
+app-xknx-editor/frontend/dist/
+# The vendored XKNX Editor tree is a faithful upstream snapshot: the Python template rules
+# above must not drop its pinned wheel, compiled translations or PyInstaller spec.
+!app-xknx-editor/vendor/wheels/
+!app-xknx-editor/vendor/**/*.mo
+!app-xknx-editor/vendor/**/*.spec

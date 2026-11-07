@@ -8,7 +8,7 @@ name: Builder
 # Layout and actions follow https://github.com/home-assistant/apps-example.
 
 env:
-  MONITORED_FILES: "config.yaml Dockerfile rootfs ha-ingress.js apparmor.txt translations patches docker-dependencies pgagent.patch"
+  MONITORED_FILES: "config.yaml Dockerfile rootfs ha-ingress.js apparmor.txt translations patches docker-dependencies pgagent.patch app frontend vendor"
 
 on:
   pull_request:
