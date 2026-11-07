@@ -45,6 +45,12 @@ jobs:
         id: changed_files
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         uses: tj-actions/changed-files@v47
+        with:
+          # Written to a file, one path per line: an app that vendors thousands of files
+          # (app-xknx-editor) overflows an environment variable and the step cannot start.
+          separator: "\n"
+          write_output_files: true
+          output_dir: .github/outputs
 
       - name: Find app directories
         id: apps
@@ -54,11 +60,12 @@ jobs:
         id: filter
         env:
           APPS: ${{ steps.apps.outputs.addons }}
-          CHANGED_FILES: ${{ steps.changed_files.outputs.all_changed_files }}
+          CHANGED_LIST: .github/outputs/all_changed_files.txt
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           selected=()
+          changed() { [[ -f "${CHANGED_LIST}" ]] && grep -qE "$1" "${CHANGED_LIST}"; }
 
           if [[ "${EVENT_NAME}" == "release" ]]; then
             # "<app>-<version>" selects one app; anything else builds all.
@@ -73,13 +80,13 @@ jobs:
             fi
           elif [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
             selected=(${APPS})
-          elif [[ "${CHANGED_FILES}" =~ \.github/workflows/(builder|build-app)\.yaml ]]; then
+          elif changed '^\.github/workflows/(builder|build-app)\.yaml$'; then
             # The workflow itself changed: rebuild everything.
             selected=(${APPS})
           else
             for app in ${APPS}; do
               for file in ${MONITORED_FILES}; do
-                if [[ "${CHANGED_FILES}" =~ ${app}/${file} ]]; then
+                if changed "^${app}/${file}"; then
                   selected+=("${app}")
                   break
                 fi
