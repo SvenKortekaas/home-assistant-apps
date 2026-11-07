@@ -49,6 +49,8 @@ jobs:
           # Written to a file, one path per line: an app that vendors thousands of files
           # (app-xknx-editor) overflows an environment variable and the step cannot start.
           separator: "\n"
+          # safe_output would escape the newline separators with a backslash.
+          safe_output: false
           write_output_files: true
           output_dir: .github/outputs
 
