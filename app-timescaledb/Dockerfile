@@ -68,11 +68,13 @@ RUN --mount=type=cache,id=apk-${TARGETARCH}-${TARGETVARIANT},sharing=locked,targ
         rsync \
         nano
 
-# Upgrade SSL libraries
+# Upgrade SSL libraries and musl. The base image pins musl to the release it was built with;
+# once Alpine ships a newer musl, musl-dev (needed by the postgresql*-dev packages) no longer
+# installs next to the pinned one. Adding musl here drops the pin and upgrades it.
 # hadolint ignore=DL3018
 RUN --mount=type=cache,id=apk-${TARGETARCH}-${TARGETVARIANT},sharing=locked,target=/var/cache/apk \
     set -ex \
-    && apk add --upgrade libssl3 libcrypto3 openssl-dev
+    && apk add --upgrade musl musl-utils libssl3 libcrypto3 openssl-dev
 
 # Upgrade bashio: the base image ships 0.18.0, whose add-on info helpers (bashio::addon.*)
 # always query /store/addons, which the Supervisor no longer allows for add-ons (403). Fixed in 0.19.0.

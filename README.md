@@ -72,7 +72,9 @@ pgAgent and TimescaleDB Toolkit. Apache 2.0, derived from an earlier add-on (see
 Web-based KNX project editor built on [XKNX Editor](https://github.com/knx-ai/xknx-editor) and
 the [xknx](https://github.com/XKNX/xknx) library: import or create a `.knxproj`, set parameters,
 link group objects, program devices over a KNX/IP gateway, watch and record the bus, and let an
-LLM client work on the project through its MCP server. Experimental, GPL-2.0-only.
+LLM client work on the project through its MCP server. Experimental, GPL-2.0-only. An
+independent port: the XKNX project also offers an official
+[Home Assistant integration](https://github.com/XKNX/xknx-editor-ha-integration).
 
 [:books: Documentation](app-xknx-editor/DOCS.md) · [:memo: Changelog](app-xknx-editor/CHANGELOG.md) · [:lock: Security](app-xknx-editor/SECURITY.md)
 

@@ -15,6 +15,8 @@
 - Moved into the home-assistant-apps repository. The image is now the multi-arch
   `ghcr.io/cyberjunky/app-timescaledb`.
 - Attribution to the original Apache-licensed add-on added in `NOTICE`.
+- Build fix: musl is upgraded in the image, so the PostgreSQL development packages install
+  on the pinned base image after Alpine updates musl.
 
 ## 5.4.2
 
