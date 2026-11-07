@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: find
     strategy:
+      # One app's lint failure shouldn't cancel the others' — report each independently.
+      fail-fast: false
       matrix:
         path: ${{ fromJson(needs.find.outputs.addons) }}
     steps:
@@ -40,11 +42,17 @@ jobs:
         with:
           path: "./${{ matrix.path }}"
 
-  # TeslaMeter is the only app with its own Python application; lint and
-  # format-check it with its own ruff.toml.
+  # Lint and format-check the apps that ship their own Python application;
+  # each uses its own ruff.toml.
   ruff:
-    name: Ruff (app-teslameter)
+    name: Ruff (${{ matrix.app }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - app-meldkamer
+          - app-teslameter
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v7.0.1
@@ -55,10 +63,10 @@ jobs:
         uses: astral-sh/ruff-action@v3
         with:
           args: check
-          src: app-teslameter
+          src: ${{ matrix.app }}
 
       - name: Format check
         uses: astral-sh/ruff-action@v3
         with:
           args: format --check
-          src: app-teslameter
+          src: ${{ matrix.app }}
