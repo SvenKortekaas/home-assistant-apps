@@ -86,6 +86,8 @@ jobs:
         uses: home-assistant/builder/actions/build-image@2026.09.0
         with:
           arch: ${{ matrix.arch }}
+          # Each app gets its own build cache; the default scope is per architecture only.
+          cache-gha-scope: ${{ inputs.app }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           context: "./${{ inputs.app }}"
           image: ${{ matrix.image }}

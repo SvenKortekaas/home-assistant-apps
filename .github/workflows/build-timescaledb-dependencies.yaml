@@ -39,7 +39,7 @@ jobs:
       timescaledb_version: ${{ steps.set.outputs.timescaledb_version }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Compose matrix
         id: set
@@ -91,13 +91,13 @@ jobs:
       matrix: ${{ fromJson(needs.matrix.outputs.build) }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4.4.1
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -105,7 +105,7 @@ jobs:
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7.4.0
         with:
           context: ${{ env.APP_DIR }}
           file: ${{ env.APP_DIR }}/docker-dependencies/${{ matrix.component }}
@@ -124,7 +124,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: digests-${{ matrix.component }}-${{ matrix.platform }}
           path: /tmp/digests/*
@@ -147,17 +147,17 @@ jobs:
       matrix: ${{ fromJson(needs.matrix.outputs.merge) }}
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           path: /tmp/digests
           pattern: digests-${{ matrix.component }}-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4.4.1
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
