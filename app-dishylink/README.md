@@ -12,9 +12,10 @@
 
 # Dishylink App for Home Assistant
 
-A Home Assistant app that runs the [Dishylink](https://github.com/DaveyHert/Dishylink)
-Starlink dashboard and its always-on history recorder on your Home Assistant host, and
-opens it from the sidebar.
+A Home Assistant app that ports [DaveyHert/Dishylink](https://github.com/DaveyHert/Dishylink)
+in its "browser" form: the built Starlink web dashboard, the always-on history recorder
+and the LAN/cloud proxies, running on your Home Assistant host and opened from the
+sidebar.
 
 Dishylink reads your Starlink dish and router directly over the local network, so it
 keeps working during an outage. No account, no cloud, no telemetry: everything it records
