@@ -86,10 +86,11 @@ version in an app's `config.yaml` is what Home Assistant offers as an update; th
 matching entry in its `CHANGELOG.md` describes what changed.
 
 Images are built by GitHub Actions and published to the GitHub Container Registry.
-Publishing a GitHub release tagged `<app folder>-<version>`, for example
-`app-dishylink-1.0.3`, builds that app for every architecture it supports and pushes
-`ghcr.io/cyberjunky/<app>:<version>` plus `latest`. Pushes and pull requests only
-test-build the apps whose files changed.
+Every push to `main` builds the apps whose files changed and pushes
+`ghcr.io/cyberjunky/<app>:<version>` plus `latest` for every architecture the app
+supports, unless that version is already published. Raising the version in an app's
+`config.yaml` together with its changelog entry is therefore the whole release. Pull
+requests only test-build.
 
 ## 💖 Support This Project
 

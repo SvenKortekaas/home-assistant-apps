@@ -1,0 +1,38 @@
+# Dependabot keeps the GitHub Actions, the XKNX Editor frontend packages and the Docker base
+# images current. Every pull request it opens is test-built by the Builder workflow.
+# Versions declared as ARG lines in the Dockerfiles (pgAdmin, TimescaleDB and its extensions,
+# Dishylink's upstream tag, the vendored XKNX Editor snapshot) are not covered and stay manual.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /app-xknx-editor/frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directories:
+      - /app-dishylink
+      - /app-pgadmin4
+      - /app-timescaledb
+      - /app-xknx-editor
+    schedule:
+      interval: monthly
+    ignore:
+      # Base image majors (Alpine or Python line changes) are decided by hand.
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

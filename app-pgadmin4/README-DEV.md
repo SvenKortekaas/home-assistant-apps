@@ -30,9 +30,9 @@ docker buildx build --platform linux/amd64 \
 
 ## Build with GitHub Actions
 
-The repository's **Builder** workflow test-builds this app on every push that touches it
-and publishes `ghcr.io/cyberjunky/app-pgadmin4:<version>` (multi-arch) when a GitHub
-release tagged `app-pgadmin4-<version>` is published. To test a branch on a Home Assistant
+The repository's **Builder** workflow builds this app on every push that touches it and
+publishes `ghcr.io/cyberjunky/app-pgadmin4:<version>` (multi-arch) whenever the version in
+`config.yaml` is not yet on GHCR. To test a branch on a Home Assistant
 machine, copy this folder to `/addons`, remove the `image:` line from `config.yaml`, and let
 the Supervisor build it locally.
 

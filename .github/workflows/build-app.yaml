@@ -3,7 +3,8 @@ name: Build app
 # Reusable workflow called by builder.yaml for one app folder. Builds one
 # image per architecture listed in the app's config.yaml on a native runner,
 # then publishes a multi-arch manifest under the app's `image:` name, tagged
-# with the app's version and "latest".
+# with the app's version and "latest". A version tag that already exists on
+# GHCR is never overwritten: the images are rebuilt as a test but not pushed.
 
 on:
   workflow_call:
@@ -100,6 +101,7 @@ jobs:
             io.hass.description=${{ needs.prepare.outputs.description }}
             ${{ needs.prepare.outputs.url && format('io.hass.url={0}', needs.prepare.outputs.url) || '' }}
           push: ${{ inputs.publish }}
+          skip-existing: ${{ needs.prepare.outputs.version }}
           version: ${{ needs.prepare.outputs.version }}
 
   manifest:
@@ -121,3 +123,4 @@ jobs:
             ${{ needs.prepare.outputs.version }}
             latest
           registry-prefix: ${{ needs.prepare.outputs.registry_prefix }}
+          skip-existing: ${{ needs.prepare.outputs.version }}

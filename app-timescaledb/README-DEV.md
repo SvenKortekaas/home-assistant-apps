@@ -25,9 +25,9 @@ the repository's **Build TimescaleDB dependencies** workflow read.
 
 ## Release builds
 
-The repository's **Builder** workflow test-builds this app on every push that touches it
-and publishes `ghcr.io/cyberjunky/app-timescaledb:<version>` (multi-arch) when a GitHub
-release tagged `app-timescaledb-<version>` is published. It pulls the prebuilt extension
+The repository's **Builder** workflow builds this app on every push that touches it and
+publishes `ghcr.io/cyberjunky/app-timescaledb:<version>` (multi-arch) whenever the version in
+`config.yaml` is not yet on GHCR. It pulls the prebuilt extension
 images from `ghcr.io/cyberjunky/timescaledb/dependency`, so rebuild those first with the
 **Build TimescaleDB dependencies** workflow whenever a component version changes.
 

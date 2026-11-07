@@ -1,11 +1,15 @@
 name: Builder
 
-# Test-builds every changed app on pushes and pull requests, and builds and
-# publishes images to GHCR when a GitHub release is published. A release
-# whose tag is "<app folder>-<version>" (for example app-dishylink-1.0.3)
-# builds only that app; any other release tag builds every app. The image
-# tags come from the version in each app's config.yaml, not from the git tag.
-# Layout and actions follow https://github.com/home-assistant/apps-example.
+# Pull requests test-build every changed app. Pushes to main build the changed
+# apps and publish them to GHCR, tagged with the version in each app's
+# config.yaml; a version that is already on GHCR is rebuilt but never
+# overwritten (skip-existing), so a push without a version bump publishes
+# nothing. Bumping the version and pushing is therefore the whole release:
+# Home Assistant offers the update from config.yaml and pulls that tag.
+# A GitHub release still works too: a tag "<app folder>-<version>" (for
+# example app-dishylink-1.0.3) builds and publishes that app, any other
+# release tag every app. Layout and actions follow
+# https://github.com/home-assistant/apps-example.
 
 env:
   MONITORED_FILES: "config.yaml Dockerfile rootfs ha-ingress.js apparmor.txt translations patches docker-dependencies pgagent.patch app frontend vendor"
@@ -120,5 +124,5 @@ jobs:
     uses: ./.github/workflows/build-app.yaml
     with:
       app: ${{ matrix.app }}
-      publish: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+      publish: ${{ github.event_name == 'push' || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
     secrets: inherit
