@@ -12,7 +12,7 @@ name: Builder
 # https://github.com/home-assistant/apps-example.
 
 env:
-  MONITORED_FILES: "config.yaml Dockerfile rootfs ha-ingress.js apparmor.txt translations patches docker-dependencies pgagent.patch app frontend vendor"
+  MONITORED_FILES: "config.yaml Dockerfile rootfs ha-ingress.js apparmor.txt translations patches docker-dependencies pgagent.patch"
 
 on:
   pull_request:
@@ -50,8 +50,8 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         uses: tj-actions/changed-files@v47
         with:
-          # Written to a file, one path per line: an app that vendors thousands of files
-          # (app-xknx-editor) overflows an environment variable and the step cannot start.
+          # Written to a file, one path per line: a change touching thousands of files
+          # would overflow an environment variable and the step could not start.
           separator: "\n"
           # safe_output would escape the newline separators with a backslash.
           safe_output: false
