@@ -17,6 +17,7 @@ updates:
     directories:
       - /app-dishylink
       - /app-pgadmin4
+      - /app-teslameter
       - /app-timescaledb
     schedule:
       interval: monthly
@@ -25,3 +26,13 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
+
+  # TeslaMeter's Python packages, pinned in its requirements.txt and installed in its Dockerfile.
+  - package-ecosystem: pip
+    directory: /app-teslameter
+    schedule:
+      interval: monthly
+    groups:
+      python:
+        patterns:
+          - "*"

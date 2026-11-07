@@ -39,3 +39,26 @@ jobs:
         uses: frenck/action-addon-linter@v2.21
         with:
           path: "./${{ matrix.path }}"
+
+  # TeslaMeter is the only app with its own Python application; lint and
+  # format-check it with its own ruff.toml.
+  ruff:
+    name: Ruff (app-teslameter)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: check
+          src: app-teslameter
+
+      - name: Format check
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: format --check
+          src: app-teslameter

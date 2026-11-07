@@ -62,6 +62,11 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Local app databases (e.g. TeslaMeter's dev/demo runs)
+*.db
+*.sqlite3
+*.sqlite3-journal
+
 # Flask stuff:
 instance/
 .webassets-cache

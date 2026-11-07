@@ -1,0 +1,641 @@
+"""Vehicle monitoring: follows each car and records its drives, charges and states.
+
+Reading a car's data keeps it awake, so the monitor backs off when nothing
+happens. A car that has been idle for a while is left alone for a window in
+which only its cheap summary (online / asleep) is checked; the streaming
+channel, which doesn't keep the car awake, reports when it moves or starts
+drawing power in the meantime.
+"""
+
+import asyncio
+import contextlib
+import logging
+import time
+from collections.abc import Callable
+
+from . import vehicle_specs
+from .config import KM_PER_MILE, Config
+from .database import Database
+from .places import Places
+from .streaming import VehicleStream
+from .tesla_api import RateLimited, TeslaApi, TeslaApiError, VehicleUnavailable
+from .tesla_auth import AuthError, TeslaAuth
+
+logger = logging.getLogger(__name__)
+
+DRIVING_SHIFTS = ("D", "R", "N")
+# A drive (or charge) survives this long without data: tunnels, garages, add-on restarts
+DRIVE_GAP = 300
+CHARGE_GAP = 900
+# While parked a position is stored at most this often
+PARKED_INTERVAL = 60
+# With the stream delivering positions, the API only has to add temperatures and the like
+POLL_DRIVING_STREAMED = 10
+DISCOVERY_INTERVAL = 6 * 3600
+
+MODEL_NAMES = {
+    "model3": "Model 3",
+    "modely": "Model Y",
+    "models": "Model S",
+    "models2": "Model S",
+    "lychee": "Model S",
+    "modelx": "Model X",
+    "tamarind": "Model X",
+    "cybertruck": "Cybertruck",
+}
+# Rated consumption (Wh/km) until it has been learned from a few charging sessions
+DEFAULT_EFFICIENCY = {"Model 3": 150.0, "Model Y": 165.0, "Model S": 185.0, "Model X": 210.0, "Cybertruck": 290.0}
+FALLBACK_EFFICIENCY = 160.0
+
+
+def _km(miles) -> float | None:
+    return None if miles is None else round(float(miles) * KM_PER_MILE, 3)
+
+
+def _seconds(millis, default: float) -> int:
+    try:
+        return int(float(millis) / 1000) if millis else int(default)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def charge_power_kw(charge: dict) -> float:
+    """Power drawn from the charger in kW.
+
+    The API reports whole kilowatts. On AC, volts x amps x phases is more
+    precise; some cars report a three-phase connection as 2 phases, so the
+    phase count is picked that matches the reported power best.
+    """
+    reported = float(charge.get("charger_power") or 0)
+    volts, amps, phases = (charge.get(k) for k in ("charger_voltage", "charger_actual_current", "charger_phases"))
+    if charge.get("fast_charger_present") or not (volts and amps and phases):
+        return reported
+    candidates = {phases, 3} if phases == 2 else {phases}
+    return min((volts * amps * n / 1000.0 for n in candidates), key=lambda kw: abs(kw - reported))
+
+
+def normalize(data: dict, now: float) -> dict:
+    """Tesla's vehicle_data as one flat, metric snapshot of the car."""
+    drive = data.get("drive_state") or {}
+    charge = data.get("charge_state") or {}
+    climate = data.get("climate_state") or {}
+    vehicle = data.get("vehicle_state") or {}
+    config = data.get("vehicle_config") or {}
+    update = vehicle.get("software_update") or {}
+
+    charging_state = charge.get("charging_state")
+    doors = [vehicle.get(k) for k in ("df", "dr", "pf", "pr")]
+    windows = [vehicle.get(k) for k in ("fd_window", "fp_window", "rd_window", "rp_window")]
+    tpms = {
+        wheel: vehicle.get(f"tpms_pressure_{wheel}")
+        for wheel in ("fl", "fr", "rl", "rr")
+        if vehicle.get(f"tpms_pressure_{wheel}") is not None
+    }
+    return {
+        "ts": _seconds(drive.get("timestamp") or vehicle.get("timestamp"), now),
+        "name": vehicle.get("vehicle_name") or data.get("display_name") or "",
+        "model": MODEL_NAMES.get(str(config.get("car_type") or "").lower(), config.get("car_type")),
+        "car_type": config.get("car_type"),
+        "trim": config.get("trim_badging"),
+        "color": config.get("exterior_color"),
+        "wheels": config.get("wheel_type"),
+        # Extra build details Tesla exposes, shown only when present
+        "roof_color": config.get("roof_color") or None,
+        "exterior_trim": config.get("exterior_trim") or None,
+        "charge_port_type": config.get("charge_port_type") or None,
+        "air_suspension": config.get("has_air_suspension"),
+        # Driving
+        "shift": drive.get("shift_state"),
+        "speed_kmh": _km(drive.get("speed")) or 0.0,
+        "power_kw": drive.get("power"),
+        "lat": drive.get("latitude"),
+        "lon": drive.get("longitude"),
+        "heading": drive.get("heading"),
+        "odometer_km": _km(vehicle.get("odometer")),
+        "dest": drive.get("active_route_destination"),
+        "dest_minutes": drive.get("active_route_minutes_to_arrival"),
+        "dest_km": _km(drive.get("active_route_miles_to_arrival")),
+        "dest_soc": drive.get("active_route_energy_at_arrival"),
+        # Battery and charging
+        "soc": charge.get("battery_level"),
+        "usable_soc": charge.get("usable_battery_level"),
+        "range_km": _km(charge.get("battery_range")),
+        "est_range_km": _km(charge.get("est_battery_range")),
+        "ideal_range_km": _km(charge.get("ideal_battery_range")),
+        "charging_state": charging_state,
+        "plugged_in": charging_state not in (None, "Disconnected"),
+        "charge_limit_soc": charge.get("charge_limit_soc"),
+        "charger_power_kw": round(charge_power_kw(charge), 2),
+        "charger_voltage": charge.get("charger_voltage"),
+        "charger_current": charge.get("charger_actual_current"),
+        "charger_phases": charge.get("charger_phases"),
+        "charge_energy_added_kwh": charge.get("charge_energy_added"),
+        "charge_rate_kmh": _km(charge.get("charge_rate")),
+        "minutes_to_full": charge.get("minutes_to_full_charge"),
+        "charge_port_open": charge.get("charge_port_door_open"),
+        "fast_charger": bool(charge.get("fast_charger_present")),
+        "charger_brand": charge.get("fast_charger_brand") or None,
+        "scheduled_charging_start": charge.get("scheduled_charging_start_time"),
+        "battery_heater": charge.get("battery_heater_on"),
+        # Climate
+        "inside_temp": climate.get("inside_temp"),
+        "outside_temp": climate.get("outside_temp"),
+        "climate_on": bool(climate.get("is_climate_on")),
+        "preconditioning": bool(climate.get("is_preconditioning")),
+        "target_temp": climate.get("driver_temp_setting"),
+        # Vehicle
+        "locked": vehicle.get("locked"),
+        "sentry": bool(vehicle.get("sentry_mode")),
+        "user_present": bool(vehicle.get("is_user_present")),
+        "doors_open": any(doors),
+        "windows_open": any(windows),
+        "frunk_open": bool(vehicle.get("ft")),
+        "trunk_open": bool(vehicle.get("rt")),
+        "tpms": tpms,
+        "version": str(vehicle.get("car_version") or "").split(" ")[0] or None,
+        "update_status": update.get("status") or None,
+        "update_version": str(update.get("version") or "").strip() or None,
+        "update_progress": update.get("install_perc"),
+    }
+
+
+def position_of(snapshot: dict) -> dict:
+    """The part of a snapshot that is stored as a position."""
+    keys = (
+        "ts",
+        "lat",
+        "lon",
+        "heading",
+        "speed_kmh",
+        "power_kw",
+        "odometer_km",
+        "soc",
+        "usable_soc",
+        "range_km",
+        "est_range_km",
+        "outside_temp",
+        "inside_temp",
+    )
+    return {key: snapshot.get(key) for key in keys}
+
+
+def can_sleep(snapshot: dict) -> bool:
+    """Whether nothing is going on that keeps the car awake by itself."""
+    busy = (
+        snapshot.get("shift") in DRIVING_SHIFTS
+        or snapshot.get("climate_on")
+        or snapshot.get("preconditioning")
+        or snapshot.get("sentry")
+        or snapshot.get("user_present")
+        or snapshot.get("doors_open")
+        or snapshot.get("update_status") in ("installing", "downloading")
+    )
+    return not busy
+
+
+class CarMonitor:
+    """Follows one vehicle."""
+
+    def __init__(
+        self,
+        car: dict,
+        config: Config,
+        database: Database,
+        auth: TeslaAuth,
+        api: TeslaApi,
+        places: Places,
+        on_update: Callable[["CarMonitor"], None] | None = None,
+    ):
+        self.car_id: int = car["id"]
+        self.tesla_id: int = car["tesla_id"]
+        self.vin: str = car.get("vin") or ""
+        self.config = config
+        self.database = database
+        self.auth = auth
+        self.api = api
+        self.places = places
+        self.on_update = on_update
+
+        # What is known of the car, kept across restarts so the dashboard is never empty
+        self.snapshot: dict = database.load_snapshot(self.car_id)
+        self.snapshot.setdefault("name", car.get("name") or "")
+        current = database.current_state(self.car_id)
+        self.state: str = current["state"] if current else "unknown"
+        self.state_since: int = current["start_ts"] if current else int(time.time())
+        self.efficiency: float = (
+            config.efficiency_wh_km
+            or car.get("efficiency_wh_km")
+            or DEFAULT_EFFICIENCY.get(car.get("model") or "", FALLBACK_EFFICIENCY)
+        )
+
+        self.drive_id: int | None = None
+        self.charge_id: int | None = None
+        self.last_seen: float = 0.0
+        self.last_error: str = ""
+
+        # "awake": reading data; "resting": idle, left alone to fall asleep;
+        # "asleep": asleep or offline; "unknown": find out first
+        self._mode = "unknown"
+        self._rest_until = 0.0
+        self._idle_since: float | None = None
+        self._activity = False
+        self._last_sample_at = 0.0
+        self._last_parked_position = 0.0
+        self._failures = 0
+        self._wake = asyncio.Event()
+        self._tasks: set[asyncio.Task] = set()
+
+        self.stream: VehicleStream | None = None
+        if config.streaming and car.get("vehicle_id"):
+            self.stream = VehicleStream(auth, car["vehicle_id"], self._on_stream_sample)
+
+    # ------------------------------------------------------------------
+    # What the dashboard and MQTT see
+    # ------------------------------------------------------------------
+    def view(self) -> dict:
+        snapshot = self.snapshot
+        return {
+            **snapshot,
+            "id": self.car_id,
+            "vin": self.vin,
+            "state": self.state,
+            "state_since": self.state_since,
+            "drive_id": self.drive_id,
+            "charge_id": self.charge_id,
+            "last_seen": int(self.last_seen) or snapshot.get("ts"),
+            "error": self.last_error,
+            "streaming": bool(self.stream and self.stream.live),
+            "efficiency_wh_km": self.efficiency,
+            # Readable model/trim/colour/wheels, the paint colour and a picture of the car
+            **vehicle_specs.describe(
+                snapshot.get("car_type"), snapshot.get("trim"), snapshot.get("color"), snapshot.get("wheels"), self.vin
+            ),
+        }
+
+    def _background(self, coro) -> None:
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    def _changed(self) -> None:
+        if self.on_update:
+            try:
+                self.on_update(self)
+            except Exception:
+                logger.exception("Update listener failed")
+
+    def poke(self) -> None:
+        """Read the car's data now instead of at the next scheduled moment."""
+        self._activity = True
+        self._wake.set()
+
+    async def wake_up(self) -> None:
+        """Wake a sleeping car on request, then follow it again."""
+        await self.api.wake_up(self.tesla_id)
+        self._mode = "unknown"
+        self._idle_since = None
+        self._wake.set()
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+    async def run(self) -> None:
+        self._resume()
+        stream_task = asyncio.create_task(self.stream.run()) if self.stream else None
+        try:
+            while True:
+                delay = await self._step()
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._wake.wait(), timeout=delay)
+                self._wake.clear()
+        finally:
+            if stream_task:
+                stream_task.cancel()
+
+    async def _step(self) -> float:
+        """One round of the loop. Returns the seconds to wait before the next."""
+        try:
+            delay = await self._poll()
+        except AuthError as e:
+            # Signed out: nothing to do until the user signs in again (which wakes us)
+            self._fail(str(e))
+            if self.stream:
+                self.stream.wanted.clear()
+            return 300
+        except RateLimited as e:
+            self._fail(str(e))
+            logger.warning(f"{self.label}: {e}")
+            return e.retry_after
+        except TeslaApiError as e:
+            self._failures += 1
+            self._fail(str(e))
+            logger.warning(f"{self.label}: {e}")
+            return min(15 * 2 ** min(self._failures, 5), 300)
+        except Exception:
+            logger.exception(f"{self.label}: unexpected error")
+            self._fail("Internal error, see the add-on log")
+            return 60
+        self._failures = 0
+        if self.last_error:
+            self.last_error = ""
+            self._changed()
+        return delay
+
+    def _fail(self, message: str) -> None:
+        if message != self.last_error:
+            self.last_error = message
+            self._changed()
+
+    @property
+    def label(self) -> str:
+        return self.snapshot.get("name") or self.vin or f"car {self.car_id}"
+
+    async def _poll(self) -> float:
+        now = time.time()
+        if self._mode != "awake":
+            # The summary is free: it doesn't wake the car or keep it awake
+            summary = await self.api.vehicle(self.tesla_id)
+            self.last_seen = now
+            api_state = summary.get("state") or "offline"
+            if api_state != "online":
+                return self._went_away(api_state, now)
+            if self._mode == "resting" and now < self._rest_until and not self._activity:
+                return self.config.poll_asleep
+
+        try:
+            data = await self.api.vehicle_data(self.tesla_id)
+        except VehicleUnavailable:
+            # Fell asleep, or out of reach for a moment: the summary tells which
+            self._mode = "unknown"
+            return self.config.poll_driving if self.drive_id else 5
+        self.last_seen = now
+        self._mode = "awake"
+        self._activity = False
+        return self._process(normalize(data, now), now)
+
+    def _went_away(self, api_state: str, now: float) -> float:
+        """The car is asleep or offline."""
+        if self.drive_id and now - self._last_sample_at < DRIVE_GAP:
+            # Probably a tunnel or a parking garage: keep the drive open for a while
+            self._mode = "unknown"
+            return self.config.poll_driving * 2
+        if self.charge_id and now - self._last_sample_at < CHARGE_GAP:
+            self._mode = "unknown"
+            return self.config.poll_charging
+        if self.drive_id:
+            self._end_drive()
+        if self.charge_id:
+            self._end_charge()
+        self._mode = "asleep"
+        self._idle_since = None
+        self._activity = False
+        if self.stream:
+            self.stream.wanted.clear()
+        if self._set_state("asleep" if api_state == "asleep" else "offline", int(now)):
+            self._changed()
+        return self.config.poll_asleep
+
+    def _process(self, snapshot: dict, now: float) -> float:
+        """Handle fresh data of an awake car. Returns the seconds until the next read."""
+        sample = position_of(snapshot)
+        driving = snapshot["shift"] in DRIVING_SHIFTS
+        charging = not driving and (
+            snapshot["charging_state"] == "Charging" or (self.charge_id and snapshot["charging_state"] == "Starting")
+        )
+
+        if driving:
+            if self.charge_id:
+                self._end_charge()
+            if not self.drive_id:
+                self._start_drive(sample)
+            self.database.add_position(self.car_id, sample, self.drive_id)
+            self._last_sample_at = now
+        elif self.drive_id:
+            self.database.add_position(self.car_id, sample, self.drive_id)
+            self._end_drive()
+
+        if charging:
+            if not self.charge_id:
+                self._start_charge(snapshot, sample)
+            self.database.add_charge_sample(
+                self.charge_id,
+                {
+                    "ts": int(now),
+                    "soc": snapshot["soc"],
+                    "power_kw": snapshot["charger_power_kw"],
+                    "voltage": snapshot["charger_voltage"],
+                    "current": snapshot["charger_current"],
+                    "phases": snapshot["charger_phases"],
+                    "energy_added_kwh": snapshot["charge_energy_added_kwh"],
+                    "range_km": snapshot["range_km"],
+                    "outside_temp": snapshot["outside_temp"],
+                },
+            )
+            self._last_sample_at = now
+        elif self.charge_id:
+            self._end_charge()
+
+        if snapshot["update_status"] == "installing":
+            state = "updating"
+        else:
+            state = "driving" if driving else "charging" if charging else "online"
+        state_changed = self._set_state(state, int(now))
+        if not driving and (state_changed or now - self._last_parked_position >= PARKED_INTERVAL):
+            self.database.add_position(self.car_id, sample)
+            self._last_parked_position = now
+
+        self._remember_car(snapshot)
+        if snapshot["version"] and self.database.record_version(self.car_id, snapshot["version"], int(now)):
+            logger.info(f"{self.label}: software version {snapshot['version']}")
+        # The stream knows the elevation, the API doesn't
+        snapshot["elevation_m"] = self.snapshot.get("elevation_m") if driving else None
+        self.snapshot = snapshot
+        self.database.save_snapshot(self.car_id, snapshot)
+        if self.stream:
+            self.stream.wanted.set()
+        self._changed()
+
+        if state == "online" and can_sleep(snapshot):
+            self._idle_since = self._idle_since or now
+            if now - self._idle_since >= self.config.idle_minutes * 60:
+                # Idle long enough: stop reading its data so it can fall asleep
+                self._mode = "resting"
+                self._rest_until = now + self.config.sleep_window_minutes * 60
+                logger.debug(f"{self.label}: idle, leaving it alone to fall asleep")
+                return self.config.poll_asleep
+        else:
+            self._idle_since = None
+
+        if driving:
+            streamed = self.stream and self.stream.live
+            return max(self.config.poll_driving, POLL_DRIVING_STREAMED) if streamed else self.config.poll_driving
+        return self.config.poll_charging if charging else self.config.poll_online
+
+    def _on_stream_sample(self, sample: dict) -> None:
+        """A position pushed by the car over the streaming channel."""
+        driving = sample.pop("shift", None) in DRIVING_SHIFTS
+        if self.drive_id:
+            if not driving:
+                # Parked: read the full data to close the drive
+                self.poke()
+                return
+            if sample.get("lat") is None:
+                return
+            self.database.add_position(self.car_id, sample, self.drive_id)
+            self._last_sample_at = time.time()
+            self.last_seen = self._last_sample_at
+            self.snapshot.update({k: v for k, v in sample.items() if v is not None})
+            self._changed()
+        elif driving or (self._mode == "resting" and sample.get("power_kw")):
+            # Driving off, or drawing power while we weren't looking (charging, climate)
+            self.poke()
+
+    # ------------------------------------------------------------------
+    # Drives, charges, states
+    # ------------------------------------------------------------------
+    def _set_state(self, state: str, ts: int) -> bool:
+        if state == self.state and self.database.current_state(self.car_id):
+            return False
+        self.database.set_state(self.car_id, state, ts)
+        logger.info(f"{self.label}: {self.state} -> {state}")
+        self.state = state
+        self.state_since = ts
+        return True
+
+    def _start_drive(self, sample: dict) -> None:
+        self.drive_id = self.database.open_drive(self.car_id, sample)
+        logger.info(f"{self.label}: drive {self.drive_id} started")
+
+    def _end_drive(self) -> None:
+        drive_id, self.drive_id = self.drive_id, None
+        drive = self.database.close_drive(drive_id, self.efficiency)
+        if not drive:
+            logger.debug(f"{self.label}: drive {drive_id} too short, dropped")
+            return
+        logger.info(
+            f"{self.label}: drive {drive_id} ended: {drive['distance_km']:.1f} km in {drive['duration_s'] // 60} min"
+        )
+        self._background(self.places.fill_missing())
+
+    def _start_charge(self, snapshot: dict, sample: dict) -> None:
+        kind = "DC" if snapshot["fast_charger"] else "AC"
+        self.charge_id = self.database.open_charge(self.car_id, sample, kind, snapshot["charger_brand"])
+        logger.info(f"{self.label}: {kind} charge {self.charge_id} started at {snapshot['soc']}%")
+
+    def _end_charge(self) -> None:
+        charge_id, self.charge_id = self.charge_id, None
+        charge = self.database.close_charge(charge_id, self.config.cost_per_kwh)
+        if not charge:
+            logger.debug(f"{self.label}: charge {charge_id} added nothing, dropped")
+            return
+        logger.info(
+            f"{self.label}: charge {charge_id} ended: {charge['energy_added_kwh']:.1f} kWh added,"
+            f" {charge['start_soc']}% -> {charge['end_soc']}%"
+        )
+        self._learn_efficiency()
+        self._background(self.places.fill_missing())
+
+    def _learn_efficiency(self) -> None:
+        """Update the car's rated consumption from its charging sessions (unless set in the options)."""
+        if self.config.efficiency_wh_km:
+            return
+        learned = self.database.learn_efficiency(self.car_id)
+        if learned and abs(learned - self.efficiency) >= 0.1:
+            logger.info(f"{self.label}: rated consumption {learned} Wh/km (was {self.efficiency})")
+            self.efficiency = learned
+            self.database.apply_efficiency(self.car_id, learned)
+
+    def _remember_car(self, snapshot: dict) -> None:
+        """Keep the car's name and configuration in the database up to date."""
+        fields = {key: snapshot.get(key) for key in ("name", "model", "trim", "color", "wheels")}
+        if any(value and value != self.snapshot.get(key) for key, value in fields.items()):
+            self.database.update_car(self.car_id, **{k: v for k, v in fields.items() if v})
+            if not self.config.efficiency_wh_km and not self.database.get_car(self.car_id)["efficiency_wh_km"]:
+                self.efficiency = DEFAULT_EFFICIENCY.get(fields["model"] or "", FALLBACK_EFFICIENCY)
+
+    def _resume(self) -> None:
+        """After a restart: continue a drive or charge that was going on, close the stale ones."""
+        now = time.time()
+        if self.config.efficiency_wh_km:
+            self.database.apply_efficiency(self.car_id, self.config.efficiency_wh_km)
+        for drive in self.database.open_drives(self.car_id):
+            last = self.database.query_one("SELECT MAX(ts) AS ts FROM positions WHERE drive_id = ?", (drive["id"],))
+            if not self.drive_id and last["ts"] and now - last["ts"] < DRIVE_GAP:
+                self.drive_id = drive["id"]
+                self._last_sample_at = last["ts"]
+                logger.info(f"{self.label}: continuing drive {drive['id']}")
+            else:
+                self.database.close_drive(drive["id"], self.efficiency)
+        for charge in self.database.open_charges(self.car_id):
+            last = self.database.query_one(
+                "SELECT MAX(ts) AS ts FROM charge_samples WHERE charge_id = ?", (charge["id"],)
+            )
+            if not self.charge_id and last["ts"] and now - last["ts"] < CHARGE_GAP:
+                self.charge_id = charge["id"]
+                self._last_sample_at = last["ts"]
+                logger.info(f"{self.label}: continuing charge {charge['id']}")
+            else:
+                self.database.close_charge(charge["id"], self.config.cost_per_kwh)
+
+
+class Garage:
+    """The vehicles of the account: finds them and runs a monitor for each."""
+
+    def __init__(self, config: Config, database: Database, auth: TeslaAuth, api: TeslaApi, places: Places):
+        self.config = config
+        self.database = database
+        self.auth = auth
+        self.api = api
+        self.places = places
+        self.monitors: dict[int, CarMonitor] = {}
+        self.listeners: list[Callable[[CarMonitor], None]] = []
+        self.last_error = ""
+        self._tasks: dict[int, asyncio.Task] = {}
+
+    def _notify(self, monitor: CarMonitor) -> None:
+        for listener in self.listeners:
+            listener(monitor)
+
+    def views(self) -> list[dict]:
+        return [monitor.view() for monitor in self.monitors.values()]
+
+    def _add(self, car: dict) -> None:
+        monitor = CarMonitor(car, self.config, self.database, self.auth, self.api, self.places, self._notify)
+        self.monitors[car["id"]] = monitor
+        self._tasks[car["id"]] = asyncio.create_task(monitor.run())
+
+    async def run(self) -> None:
+        """Run until cancelled."""
+        # Cars seen before are followed (and shown) right away
+        for car in self.database.list_cars():
+            self._add(car)
+        try:
+            while True:
+                self.auth.changed.clear()
+                wait = DISCOVERY_INTERVAL
+                if self.auth.signed_in:
+                    try:
+                        await self._discover()
+                        self.last_error = ""
+                    except (AuthError, TeslaApiError) as e:
+                        self.last_error = str(e)
+                        logger.warning(f"Could not list the account's vehicles: {e}")
+                        wait = 120
+                    for monitor in self.monitors.values():
+                        monitor.poke()
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self.auth.changed.wait(), timeout=wait)
+        finally:
+            for task in self._tasks.values():
+                task.cancel()
+            await asyncio.gather(*self._tasks.values(), return_exceptions=True)
+
+    async def _discover(self) -> None:
+        """Start following vehicles of the account that aren't followed yet."""
+        for vehicle in await self.api.vehicles():
+            car_id = self.database.upsert_car(
+                vehicle["id"], vehicle.get("vehicle_id"), vehicle.get("vin"), vehicle.get("display_name")
+            )
+            if car_id not in self.monitors:
+                logger.info(f"Following {vehicle.get('display_name') or vehicle.get('vin')}")
+                self._add(self.database.get_car(car_id))
