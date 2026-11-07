@@ -1,0 +1,62 @@
+configuration:
+  units:
+    name: Eenheden
+    description: >-
+      Eenheden in het dashboard: metric (km, °C, bar) of imperial (mi, °F,
+      psi). Gegevens worden altijd metrisch opgeslagen, dus dit kan op elk
+      moment worden gewijzigd.
+  currency:
+    name: Valuta
+    description: Valutacode van drie letters voor laadkosten, bijvoorbeeld EUR.
+  cost_per_kwh:
+    name: Prijs per kWh
+    description: >-
+      Prijs van een kWh, waarmee de kosten van nieuwe laadsessies worden
+      berekend uit de energie die de lader heeft geleverd. 0 schakelt de
+      kostenberekening uit. De kosten van een enkele sessie (snellader, gratis
+      laden) zijn in het dashboard aan te passen.
+  supercharger_costs:
+    name: Supercharger-kosten
+    description: >-
+      Zoek na een snellaadsessie in de laadgeschiedenis van je Tesla-account
+      op wat Tesla ervoor in rekening heeft gebracht en gebruik dat als kosten
+      van de sessie. Sessies thuis en bij andere netwerken houden de kosten
+      die uit de prijs per kWh zijn berekend.
+  efficiency_wh_km:
+    name: Nominaal verbruik (Wh/km)
+    description: >-
+      Energie achter één kilometer nominale actieradius, om actieradius om te
+      rekenen naar kWh. Laat op 0 staan om dit uit je laadsessies te leren
+      (aanbevolen).
+  streaming:
+    name: Live stream
+    description: >-
+      Gebruik Tesla's streamingkanaal: elke seconde een positie tijdens het
+      rijden, en activiteit wordt opgemerkt zonder de auto wakker te houden.
+      Alleen uitzetten bij problemen; de auto wordt dan tijdens het rijden om
+      de paar seconden uitgelezen.
+  geocoding:
+    name: Adressen opzoeken
+    description: >-
+      Zoek het adres waar een rit of laadsessie begint en eindigt op bij
+      Nominatim van OpenStreetMap. Die coördinaten worden naar die dienst
+      gestuurd. Plaatsen binnen een Home Assistant-zone krijgen altijd de naam
+      van de zone, zonder opzoeken.
+  polling:
+    name: Uitlezen
+    description: >-
+      Hoe vaak de auto wordt uitgelezen, in seconden, per toestand.
+      idle_minutes is hoe lang de auto niets moet doen voordat hij met rust
+      wordt gelaten om in slaap te vallen, en sleep_window_minutes hoe lang
+      hooguit voordat hij weer één keer wordt uitgelezen. De standaardwaarden
+      zijn een goede balans; lagere waarden houden de auto langer wakker.
+  mqtt:
+    name: MQTT
+    description: >-
+      Publiceer de auto via MQTT met Home Assistant-discovery: sensoren,
+      binaire sensoren en een device tracker verschijnen onder een apparaat
+      met de naam van de auto. Laat host leeg om de broker van Home Assistant
+      zelf te gebruiken (Mosquitto add-on).
+  log_level:
+    name: Logniveau
+    description: Hoeveel detail de add-on naar het logboek schrijft.

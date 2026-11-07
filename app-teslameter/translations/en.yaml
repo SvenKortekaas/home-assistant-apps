@@ -1,0 +1,57 @@
+configuration:
+  units:
+    name: Units
+    description: >-
+      Units shown in the dashboard: metric (km, °C, bar) or imperial (mi, °F,
+      psi). Data is always stored in metric, so this can be changed at any time.
+  currency:
+    name: Currency
+    description: Three-letter currency code for charging costs, for example EUR or USD.
+  cost_per_kwh:
+    name: Price per kWh
+    description: >-
+      Price of a kWh, used to calculate the cost of new charging sessions from
+      the energy drawn from the charger. 0 turns cost calculation off. The cost
+      of a single session (a fast charger, free charging) can be set in the
+      dashboard.
+  supercharger_costs:
+    name: Supercharger costs
+    description: >-
+      After a fast-charge session, look up what Tesla billed for it in your
+      Tesla account's charging history and use that as the session's cost.
+      Sessions at home and at other networks keep the cost calculated from the
+      price per kWh.
+  efficiency_wh_km:
+    name: Rated consumption (Wh/km)
+    description: >-
+      Energy behind one kilometre of rated range, used to turn range into kWh.
+      Leave at 0 to learn it from your charging sessions (recommended).
+  streaming:
+    name: Live stream
+    description: >-
+      Use Tesla's streaming channel: positions every second while driving, and
+      activity is noticed without keeping the car awake. Turn off only if it
+      causes problems; the car is then read every few seconds while driving.
+  geocoding:
+    name: Address lookup
+    description: >-
+      Look up the address where a trip or charging session starts and ends at
+      OpenStreetMap's Nominatim service. Those coordinates are sent to that
+      service. Places inside a Home Assistant zone always get the zone's name,
+      without a lookup.
+  polling:
+    name: Polling
+    description: >-
+      How often the car is read, in seconds, per state. idle_minutes is how
+      long the car must be idle before it is left alone to fall asleep, and
+      sleep_window_minutes for how long at most before it is read once again.
+      The defaults are a good balance; lower values keep the car awake longer.
+  mqtt:
+    name: MQTT
+    description: >-
+      Publish the car to MQTT with Home Assistant discovery: sensors, binary
+      sensors and a device tracker appear under a device named after the car.
+      Leave host empty to use Home Assistant's own broker (Mosquitto add-on).
+  log_level:
+    name: Log level
+    description: How much detail the add-on writes to its log.
