@@ -41,7 +41,9 @@ metric km, so they carry over directly. It only reads; nothing in the source cha
 running it again never duplicates, and it fills in what trips and sessions already here are
 missing, such as tire pressures. Trips imported this way keep their GPS track; home charging
 and Supercharging both come across. Parked positions, cables, chargers and climate settings
-come along too; TeslaMate's sleep timing and geofence prices do not.
+come along too; TeslaMate's sleep timing and geofence prices do not. Every car in that
+database comes along. One that isn't on your Tesla account any more, such as a loan car, shows
+as such under **Settings → Vehicles**, with a **Remove car** button.
 
 ## How it works
 
@@ -194,6 +196,7 @@ fetches, stores and sends, and why.
 | Tesla owner API (`owner-api.teslamotors.com`) | The vehicles of your account; for each car its state, position, speed, power, odometer, battery level and range, charging details and settings, temperatures, climate and heaters, lock/doors/windows, tire pressures and warnings, valet and speed limit mode, the car's display settings, software version and navigation destination | The dashboard, and recording trips and charging sessions |
 | Tesla streaming (`streaming.vn.teslamotors.com`) | Position, speed, power, elevation, battery level and range, about once a second while driving | Detailed trips, and noticing activity without keeping the car awake (`streaming`) |
 | Tesla charging history (same API) | Your sessions at Tesla's chargers: time, location name and billed amounts | The real cost of Supercharger sessions (`supercharger_costs`) |
+| Tesla's picture service (`static-assets.tesla.com`) | A picture of the car's model and paint, once per paint and wheels. The request holds no VIN or account | The picture on the dashboard |
 | OpenStreetMap Nominatim | The address at a coordinate | Naming where trips and charging sessions start and end (`geocoding`) |
 | Home Assistant | Your zones (name, position, radius), map tiles, time zone, and the MQTT broker's address and login | Place names such as "Home", the maps, local times, and publishing entities |
 | Another logger's database (only when you run the import) | Your drives, charges, positions, states, versions and the car's details, read once from the PostgreSQL database you point it at | Bringing your existing history into TeslaMeter; nothing is written back |
@@ -209,6 +212,7 @@ backups of the app.
 | Where | What | Why |
 |-------|------|-----|
 | `tokens.json` | Tesla access token, refresh token, their expiry and your account's e-mail address | Staying signed in; the address is shown in Settings so you know which account is connected. Never your password |
+| `car-images/` | The car's picture | So it is fetched only once |
 | `teslameter.db`: cars | VIN, name, model, trim, colour, wheels, spoiler, version name, battery type, learned consumption, last known state | Showing the car and its last values while it sleeps |
 | `teslameter.db`: positions | Time, position, heading, elevation, speed, power, odometer, battery level, range, temperatures, climate settings, battery heater state and tire pressures: every second or few seconds while driving, about once a minute while parked and awake | Drawing trips, the charts and the statistics |
 | `teslameter.db`: trips and charges | Start and end time, place and position, distance, energy, battery levels, speeds, temperatures; per charging session also the power curve, cable, charger type, offered and requested current, battery heater state, cost and what Tesla billed | The Trips, Charging and Stats pages |

@@ -550,77 +550,126 @@ function updateClock() {
 // side-view silhouette tinted to the real paint colour.
 // =====================================================================
 // Side-view shapes per body style, in a 0..100 x 0..40 box. [body], [glass], [pillars], wheels.
-const CAR_SHAPES = {
-    sedan: {
-        body: [[3,33],[1,24.5],[2.4,15],[9,10],[26,4],[50,1],[70,4],[88,12],[96,16.5],[99,23],[99,31],[95,33]],
-        glass: [[15,11],[24,5.5],[40,2.4],[56,2.6],[68,6],[76,12]],
-        pillars: [[[49,1.2],[50,13]]], wheels: [22,78], wr: 8, hub: 2.8,
+// The dashboard's own car drawings, for when there is no photo: side views to scale (a model's real
+// length, height, wheelbase and wheel size), facing left like Tesla's pictures.
+const CAR_DRAWINGS = {
+    model3: {
+        body: 'M15 75.5C10 73 6.5 66 7.5 58C9 52.7 16 50.3 28 47.8C44 44.5 58 42.9 72 41.2C84 34.7 100 26.5 116 23.6C130 21.1 146 21.1 158 22.8C178 25.7 198 35.5 214 40.4C221 42.1 227 42.9 232 43.7C235 47 235.5 52.7 233.5 58C231 66 225 73 216 76L205.5 76A19.5 19.5 0 0 0 166.5 76L64.5 76A19.5 19.5 0 0 0 25.5 76L18 76C17 76 16 75.8 15 75.5Z',
+        glass: 'M77 41.6C89 35.5 103 28.1 118 25.7C132 23.9 146 23.9 156 25.3C172 27.7 186 34.7 198 39.6C160 41.2 116 41.6 77 41.6Z',
+        pillars: ['M127 24.3L125 41.6'],
+        seams: ['M77 42.1L73 58C72 66 67 72 64.5 76', 'M125 42.1L127 76', 'M179 40C178 47.8 172 54.4 166.5 66'],
+        handles: [[106, 46.2], [163, 45.3]], crease: 'M24 52.7C80 47 160 45.3 230 47',
+        light: 'M9 55.6C16 52.3 26 49.9 36 48.3C29 50.8 19 53.4 10.5 56.6Z', tail: 'M220 42.5L233 44.5C234 46.2 234.6 47.8 234.8 49.4C229 48.6 223 46.2 220 42.5Z',
+        mirror: [79, 40.8], wheels: [45, 186], cy: 67.5, r: 16.5,
     },
-    suv: {
-        body: [[3,33],[1,23],[2,12],[7,8],[18,5.5],[30,3.5],[52,2.2],[66,3],[82,8],[93,12],[98,16],[99,22],[99,31],[95,33]],
-        glass: [[15,10],[23,5.5],[38,3.6],[55,3.4],[70,5],[82,10.5]],
-        pillars: [[[38,3.6],[39,12]],[[55,3.4],[56,12]]], wheels: [22,78], wr: 8.6, hub: 3,
+    modely: {
+        body: 'M15 74.5C10 72 6.5 64 7.5 55.2C9 50.3 17 47 30 44.5C44 42.1 58 40.4 70 38C84 29.8 98 19.9 116 17.1C132 14.8 150 15 164 17.5C186 21.6 204 33 220 38.8C226 40.4 230 41.2 233 42.1C235.5 46.2 236 51.9 234 57C231.5 65 225 72 216 75L206 75A20 20 0 0 0 166 75L64 75A20 20 0 0 0 24 75L18 75C17 75 16 74.8 15 74.5Z',
+        glass: 'M75 38.4C87 30.6 101 22 118 19.5C134 17.5 150 17.6 162 19.9C178 23.2 194 32.2 206 37.5C164 39.2 118 38.8 75 38.4Z',
+        pillars: ['M128 18.4L126 38.8'],
+        seams: ['M75 38.8L71 56C70 65 66 71 64 75', 'M126 38.8L128 75', 'M183 38C181 47 173 54.4 166 66'],
+        handles: [[106, 43.7], [166, 42.9]], crease: 'M24 50.3C80 44.5 160 42.9 231 44.5',
+        light: 'M9 53.1C16 49.4 26 46.7 36 45C29 47.8 19 50.6 10.5 54Z', tail: 'M222 39.2L233.5 42.1C234.6 43.7 235 45.3 235.2 47C230 46.2 225 43.3 222 39.2Z',
+        mirror: [77, 37.5], wheels: [44, 186], cy: 67, r: 17,
+    },
+    models: {
+        body: 'M14 76.5C9 74 5.5 67 6.5 59C8 54.4 15 51.9 28 49.4C46 46.2 62 44.5 76 42.9C90 35.5 106 27.3 122 24.8C138 22.8 152 22.8 166 24.4C186 27.3 204 36.3 220 41.2C226 42.9 231 43.7 234 44.5C235.5 47.8 236 53.5 234 59C231.5 67 226 74 218 77L209.5 77A19.5 19.5 0 0 0 170.5 77L63.5 77A19.5 19.5 0 0 0 24.5 77L17 77C16 77 15 76.8 14 76.5Z',
+        glass: 'M81 43.3C94 36.3 108 28.9 124 26.9C138 25.2 152 25.2 164 26.5C178 28.6 192 34.7 204 40.4C164 42.7 122 43.3 81 43.3Z',
+        pillars: ['M133 26L131 43.1'],
+        seams: ['M81 43.7L76 60C75 68 67 73 63.5 77', 'M131 43.7L133 77', 'M188 38.8C186 47.8 178 55.2 170.5 67'],
+        handles: [[112, 47.8], [170, 47]], crease: 'M24 54.4C80 48.6 160 47 232 48.6',
+        light: 'M8 57C15 53.5 26 51.1 38 49.3C31 51.9 20 54.7 9.5 58.2Z', tail: 'M222 42.5L234 44.8C235 47 235.4 48.6 235.6 50.3C230 49.4 225 47 222 42.5Z',
+        mirror: [83, 42.5], wheels: [44, 190], cy: 68, r: 16,
+    },
+    modelx: {
+        body: 'M14 73.5C9 71 5.5 63 6.5 54.4C8 49.4 17 46.2 30 43.7C46 40.8 58 39.2 68 37.1C80 28.1 94 18.3 114 15.4C132 13.4 152 13.8 170 16.6C192 20.7 212 29.8 224 35.5C228 37.1 231 38.8 234 40.4C235.5 44.5 236 51.1 234.5 57C232 65 227 71 219 74L210 74A20 20 0 0 0 170 74L64 74A20 20 0 0 0 24 74L17 74C16 74 15 73.8 14 73.5Z',
+        glass: 'M73 37.5C85 28.9 99 20.3 116 17.9C134 15.8 154 16.1 170 19.1C186 22.4 202 29.8 214 35.5C170 38 120 38 73 37.5Z',
+        pillars: ['M124 17.1L122 37.8', 'M172 19.6L170 37.3'],
+        seams: ['M73 38L69 55.2C68 64 66 70 64 74', 'M122 38L124 74', 'M186 36.3C184 46.2 177 54.4 170 65'],
+        handles: [[102, 42.9], [160, 42.1]], crease: 'M24 49.4C80 43.7 160 42.1 232 43.7',
+        light: 'M8 52.3C15 48.6 26 45.7 36 44.2C29 47 19 49.8 9.5 53.2Z', tail: 'M222 35.1L234 40.4C235 42.1 235.6 43.7 235.8 45.3C230 44.2 225 40.4 222 35.1Z',
+        mirror: [75, 36.7], wheels: [44, 190], cy: 66.5, r: 17.5,
     },
     truck: {
-        body: [[2,33],[2,22],[44,9],[99,15],[99,31],[95,33]],
-        glass: [[30,13.5],[44,10.2],[70,11.8],[70,16],[30,16]],
-        pillars: [], wheels: [22,80], wr: 8.4, hub: 3,
+        paint: '#c3c8cd',
+        body: 'M6 48L96 9L236 33L236 62L230 72L210 72A20 20 0 0 0 170 72L64 72A20 20 0 0 0 24 72L12 72L6 62Z',
+        glass: 'M56 31.5L96 14L154 23.5L154 37L56 37Z',
+        pillars: ['M106 15.6L106 37'],
+        seams: ['M56 37L56 56L64 72', 'M106 37L106 72', 'M154 37L154 64L170 72', 'M154 24L236 33'],
+        handles: [], crease: 'M8 52L236 44',
+        light: 'M7 47.6L40 33.2L40 35L8 49.4Z', tail: 'M236 34L236 36.5L156 36.5L156 34Z',
+        mirror: null, wheels: [44, 190], cy: 67, r: 17,
     },
     roadster: {
-        body: [[3,32],[1.5,26],[4,20],[16,16],[34,8],[52,5],[70,7],[86,14],[96,18],[99,24],[99,30.5],[96,32]],
-        glass: [[30,10.5],[42,7],[56,6.5],[66,10]],
-        pillars: [], wheels: [22,78], wr: 8.2, hub: 3,
+        body: 'M8 72L7 66L10 60L58 50L92 33C96 30.6 100 29.6 106 29L140 28.5C146 28.5 150 29.5 154 31L226 46L234 49L235.5 58L232 70L224 78L206 78A19 19 0 0 0 168 78L63 78A19 19 0 0 0 25 78L14 78Z',
+        glass: 'M80 46L95 35.4C98 33.4 102 32.2 108 31.8L138 31.4C144 31.4 148 32.2 152 33.4L190 42.6Z',
+        pillars: ['M136 31.4L135 44.4'],
+        seams: ['M80 46L76 62L63 78', 'M174 43.6L170 60L168 78'],
+        handles: [[152, 49]], crease: 'M14 64L232 56',
+        light: 'M9 60L44 52.6L46 54L11 62.2Z', tail: 'M220 44.8L234 49L235 53.4L224 49.6Z',
+        mirror: [82, 45], wheels: [44, 187], cy: 68, r: 16, thrusters: true,
     },
 };
+let carDrawingCount = 0;
 
-// Chaikin corner-cutting, to round a polygon's corners (same smoothing as the icon)
-function chaikin(points, rounds) {
-    for (let r = 0; r < (rounds || 3); r++) {
-        const out = [];
-        for (let i = 0; i < points.length; i++) {
-            const a = points[i], b = points[(i + 1) % points.length];
-            out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
-            out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
-        }
-        points = out;
-    }
-    return points;
+function carWheel(cx, cy, r) {
+    const spokes = [0, 72, 144, 216, 288].map(deg => {
+        const a = (deg - 90) * Math.PI / 180;
+        return `<line x1="${cx}" y1="${cy}" x2="${(cx + Math.cos(a) * r * 0.62).toFixed(1)}" y2="${(cy + Math.sin(a) * r * 0.62).toFixed(1)}"/>`;
+    }).join('');
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#121417"/>
+        <circle cx="${cx}" cy="${cy}" r="${(r * 0.68).toFixed(1)}" fill="#23272c" stroke="#a7aeb5" stroke-width="1.1"/>
+        <g stroke="#a7aeb5" stroke-width="${(r * 0.14).toFixed(1)}" stroke-linecap="round">${spokes}</g>
+        <circle cx="${cx}" cy="${cy}" r="${(r * 0.16).toFixed(1)}" fill="#d3d8dc"/>`;
 }
-const pointsStr = (pts) => pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
 
 function carSilhouette(car) {
-    // Unknown paint (e.g. on a fresh sign-in, before Tesla reports it): a clean
-    // pearl white, the standard Model 3 colour, rather than a dull grey.
-    const paint = (car && car.color_hex) || '#eef1f5';
-    const style = (car && car.body_style);
-    const shape = CAR_SHAPES[style] || CAR_SHAPES.sedan;
-    const body = pointsStr(chaikin(shape.body, 3));
-    const glass = pointsStr(chaikin(shape.glass, 2));
-    const pillars = shape.pillars.map(([a, b]) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${paint}" stroke-width="1.2"/>`).join('');
-    const wheel = (cx) => `<circle cx="${cx}" cy="30" r="${shape.wr}" fill="#15171a"/><circle cx="${cx}" cy="30" r="${shape.hub}" fill="#3a3f45"/>`;
-    // The new Roadster's SpaceX package puts rocket thrusters at the rear (the car faces right).
-    const roadster = style === 'roadster';
-    const view = roadster ? '-20 -1 122 42' : '-1 -1 102 42';
-    const nozzle = (cy) => `<rect x="-1.5" y="${cy - 2}" width="4.5" height="4" rx="1.2" fill="#2c3035"/>`;
-    const flame = (cy) => `<polygon points="1,${cy - 2.4} -18,${cy} 1,${cy + 2.4}" fill="url(#thrust)"/>`
-        + `<polygon points="1,${cy - 1.3} -10,${cy} 1,${cy + 1.3}" fill="#fff6d8"/>`;
-    const thrusters = roadster ? `<defs><linearGradient id="thrust" gradientUnits="userSpaceOnUse" x1="2" y1="0" x2="-18" y2="0">
-            <stop offset="0" stop-color="#fff4c2"/><stop offset="0.35" stop-color="#ffd34d"/>
-            <stop offset="0.7" stop-color="#ff7a18"/><stop offset="1" stop-color="#ff7a18" stop-opacity="0"/></linearGradient></defs>
-        ${flame(22.5)}${flame(28)}${nozzle(22.5)}${nozzle(28)}` : '';
-    return `<svg viewBox="${view}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHtml((car && car.model_name) || 'car')}">
-        ${thrusters}<polygon points="${body}" fill="${paint}" stroke="rgba(0,0,0,0.2)" stroke-width="0.5"/>
-        <polygon points="${glass}" fill="rgba(255,255,255,0.32)" stroke="rgba(0,0,0,0.14)" stroke-width="0.4"/>
-        ${pillars}${wheel(shape.wheels[0])}${wheel(shape.wheels[1])}</svg>`;
+    const d = CAR_DRAWINGS[car && car.body_style] || CAR_DRAWINGS.model3;
+    // Unknown paint (e.g. on a fresh sign-in, before Tesla reports it): a clean pearl white
+    const paint = (car && car.color_hex) || d.paint || '#eef1f5';
+    const n = ++carDrawingCount;
+    const line = 'stroke="rgba(0,0,0,0.32)" stroke-width="0.6" fill="none"';
+    const handles = d.handles.map(([x, y]) => `<rect x="${x}" y="${y}" width="11" height="1.5" rx="0.75" fill="rgba(0,0,0,0.3)"/>`).join('');
+    const mirror = d.mirror ? `<ellipse cx="${d.mirror[0]}" cy="${d.mirror[1]}" rx="4" ry="2" fill="${paint}" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>` : '';
+    // The new Roadster's SpaceX package: rocket thrusters at the rear
+    const thrusters = d.thrusters ? `<polygon points="236,56 268,59 236,62" fill="url(#car-flame-${n})"/><polygon points="236,64 262,66.5 236,69" fill="url(#car-flame-${n})"/>
+        <rect x="232" y="55" width="6" height="8" rx="1.5" fill="#2c3035"/><rect x="232" y="63" width="6" height="7" rx="1.5" fill="#2c3035"/>` : '';
+    return `<svg viewBox="0 0 ${d.thrusters ? 270 : 240} 90" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHtml((car && car.model_name) || 'car')}">
+        <defs>
+            <linearGradient id="car-shade-${n}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.34"/><stop offset="0.42" stop-color="#fff" stop-opacity="0.04"/>
+                <stop offset="0.72" stop-color="#000" stop-opacity="0.06"/><stop offset="1" stop-color="#000" stop-opacity="0.38"/>
+            </linearGradient>
+            <linearGradient id="car-glass-${n}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#3d4852"/><stop offset="1" stop-color="#14191e"/>
+            </linearGradient>
+            <linearGradient id="car-flame-${n}" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#fff4c2"/><stop offset="0.4" stop-color="#ffb52e"/><stop offset="1" stop-color="#ff7a18" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+        <ellipse cx="120" cy="84.5" rx="114" ry="3.2" fill="#000" opacity="0.16"/>
+        ${thrusters}
+        <path d="${d.body}" fill="${paint}"/>
+        <path d="${d.body}" fill="url(#car-shade-${n})" stroke="rgba(0,0,0,0.35)" stroke-width="0.5"/>
+        <path d="${d.glass}" fill="url(#car-glass-${n})"/>
+        ${d.pillars.map(p => `<path d="${p}" stroke="${paint}" stroke-width="2.2" fill="none"/>`).join('')}
+        <path d="${d.crease}" stroke="rgba(255,255,255,0.28)" stroke-width="0.7" fill="none"/>
+        <clipPath id="car-body-${n}"><path d="${d.body}"/></clipPath>
+        <g clip-path="url(#car-body-${n})"><rect x="0" y="${d.cy + 1.5}" width="240" height="30" fill="#15181c" opacity="0.82"/></g>
+        ${d.seams.map(p => `<path d="${p}" ${line}/>`).join('')}
+        ${handles}${mirror}
+        <path d="${d.light}" fill="#f4f7fa" stroke="rgba(0,0,0,0.4)" stroke-width="0.4"/>
+        <path d="${d.tail}" fill="#b0141f"/>
+        ${carWheel(d.wheels[0], d.cy, d.r)}${carWheel(d.wheels[1], d.cy, d.r)}
+    </svg>`;
 }
 
 function carVisual(car, height) {
     const sil = carSilhouette(car);
     const h = height || 88;
     if (car.image_url) {
-        // Tesla's render; if it fails to load, fall back to the tinted silhouette
+        // Tesla's picture, kept by the add-on; if it can't be had, the drawing in the car's paint
         return `<div class="car-visual" style="height:${h}px">
-            <img class="car-photo" src="${escapeHtml(car.image_url)}" alt="${escapeHtml(car.model_name || 'Tesla')}" loading="lazy"
+            <img class="car-photo" src="${basePath}api/cars/${car.id}/image?v=${escapeHtml(car.image_key || '')}" alt="${escapeHtml(car.model_name || 'Tesla')}" style="transform:scale(${car.image_scale || 1})" loading="lazy"
                  onerror="var v=this.closest('.car-visual'); this.remove(); v.classList.add('no-photo')">
             <div class="car-sil">${sil}</div></div>`;
     }
