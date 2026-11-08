@@ -237,9 +237,9 @@ function renderStatsTiles(r) {
     const periods = r.buckets.length;
     const per = (v, unitText) => missing(v) || periods < 2 ? '' : `≈ ${num(v / periods, Math.abs(v / periods) < 10 ? 1 : 0)} ${unitText} per ${r.bucket}`;
     const joined = (...parts) => parts.filter(Boolean).join(' · ');
-    // The Toon's own history has burner minutes; its hour counters only exist since logging started
-    const fromMinutes = missing(t.burner_minutes) ? null : t.burner_minutes / 60;
-    const burnerHours = missing(fromMinutes) || t.burner_hours > fromMinutes ? t.burner_hours : fromMinutes;
+    // The boiler's own hour counter, which only exists here since logging started. The Toon's history
+    // of burner minutes is far too low to be real burner time, so it isn't used.
+    const hoursSince = r.burner_hours_since ? `since ${fmtIsoDate(r.burner_hours_since, true)}` : '';
     const e = r.energy;
     document.getElementById('stats-tiles').innerHTML = [
         tile('Energy in gas', unit(e.gas_kwh, 0, 'kWh'), per(e.gas_kwh, 'kWh') || `at ${num(e.kwh_per_m3, 2)} kWh per m³`),
@@ -248,7 +248,7 @@ function renderStatsTiles(r) {
         tile('From grid', unit(t.import, t.import < 10 ? 2 : 0, 'kWh'), per(t.import, 'kWh')),
         tile('To grid', unit(t.export, t.export < 10 ? 2 : 0, 'kWh'), per(t.export, 'kWh')),
         tile('Net electricity', unit(net, Math.abs(net) < 10 ? 2 : 0, 'kWh'), per(net, 'kWh') || 'from minus to grid'),
-        tile('Burner hours', unit(burnerHours, 0, 'h'), joined(per(burnerHours, 'h'), `hot water ${num(t.dhw_hours)} h`)),
+        tile('Burner hours', unit(t.burner_hours, 0, 'h'), joined(hoursSince, `hot water ${num(t.dhw_hours)} h`)),
         tile('Night base load', unit(r.base_load, 0, 'W'), 'recent week'),
         tile('Condensing', c.condensing_share === null ? '–' : unit(c.condensing_share, 0, '%'), joined('return under 55 °C', since)),
     ].join('');
@@ -381,13 +381,31 @@ async function loadDay() {
     const step = 120;
     const charts = dayCharts();
     const metrics = charts.flatMap(c => c.series.map(s => s.metric));
-    const data = await api(`history?start=${start}&end=${end}&metrics=${[...metrics, 'burner_code'].join(',')}`);
+    const [data, gasHours] = await Promise.all([
+        api(`history?start=${start}&end=${end}&metrics=${[...metrics, 'burner_code'].join(',')}`),
+        api(`gas-hours?day=${stats.day}`),
+    ]);
+    // The Toon keeps no history of the gas flow: only days the app was logging have it
+    const shown = charts.filter(c => c.id !== 'day-gas' || (data.gas_flow || []).length);
+    const gasTotal = gasHours.reduce((total, h) => total + h.gas, 0);
     const xs = gridTimes(start, end, step);
     const bands = burnerBands(data.burner_code, start, end, step);
     const ticks = hourTicks(start, end, 3);
     const host = document.getElementById('day-charts');
-    host.innerHTML = charts.map(c => `<div class="chart-label">${escapeHtml(c.title)}</div><div id="${c.id}" class="chart"></div><div class="legend" id="${c.id}-legend" style="margin-bottom:12px"></div>`).join('');
-    charts.forEach(c => {
+    host.innerHTML = `<div class="chart-label">Gas per hour · m³${gasHours.length ? ` · ${num(gasTotal, 2)} m³ this day` : ''}</div><div id="day-gas-hours" class="chart"></div>` + shown.map(c => `<div class="chart-label">${escapeHtml(c.title)}</div><div id="${c.id}" class="chart"></div><div class="legend" id="${c.id}-legend" style="margin-bottom:12px"></div>`).join('');
+    barChart(document.getElementById('day-gas-hours'), {
+        data: gasHours.map(h => ({
+            label: `${String(new Date(h.ts * 1000).getHours()).padStart(2, '0')}:00`,
+            tipTitle: fmtDateTime(h.ts),
+            values: [h.gas],
+        })),
+        series: [{name: 'Gas', color: color('series-4')}],
+        format: fmtGas,
+        height: 110,
+        labelWidth: 48,
+        empty: gasHours.length ? 'No gas used on this day' : 'No hourly gas for this day: the Toon keeps about five years',
+    });
+    shown.forEach(c => {
         const series = c.series.map(s => ({name: s.name, color: color(s.color), width: s.width, area: s.area, values: grid(data[s.metric], start, end, step, 1800)}));
         lineChart(document.getElementById(c.id), {
             x: xs, series, xTicks: ticks, zero: c.zero, height: c.height, formatX: fmtDateTime, formatY: c.format,
