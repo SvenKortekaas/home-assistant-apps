@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the capcode import (bommel.net) and Import All Places could start while another import was running, and two quick clicks could start them twice. They now refuse with "Import already in progress", like Import BAG does. A page reloaded during Import All Places no longer shows the previous BAG batch ("12/12").
+
 ## 1.4.10
 
 **After updating:** nothing to do.
