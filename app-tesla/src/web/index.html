@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- The top bar is as high as Home Assistant's own header (its --header-height, 56px by default) -->
+    <script>try{const h=getComputedStyle(window.parent.document.documentElement).getPropertyValue('--header-height').trim();if(h)document.documentElement.style.setProperty('--ha-header-height',h);}catch(e){}</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tesla</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234c8dff' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M4 16a8 8 0 1 1 16 0'/%3E%3Cpath d='M12 16l4-5'/%3E%3C/svg%3E">
@@ -126,7 +128,7 @@
                         <div class="panel"><div class="panel-body"><div class="chart-title"><span>Consumption</span><span class="hint" id="chart-consumption-hint"></span></div><div id="chart-consumption" class="chart"></div></div></div>
                         <div class="panel"><div class="panel-body"><div class="chart-title"><span>Consumption by outside temperature</span><span class="hint" id="chart-temp-hint"></span></div><div id="chart-temp" class="chart"></div></div></div>
                         <div class="panel wide"><div class="panel-body"><div class="chart-title"><span>Tire pressure</span><span class="hint" id="chart-tires-hint"></span></div><div id="chart-tires" class="chart"></div><div class="legend"><span><i style="background:var(--series-1)"></i>Front left</span><span><i style="background:var(--series-2)"></i>Front right</span><span><i style="background:var(--series-3)"></i>Rear left</span><span><i style="background:var(--series-4)"></i>Rear right</span></div></div></div>
-                        <div class="panel wide"><div class="panel-body"><div class="chart-title"><span>Battery health</span><span class="hint">the car's own rated range at 100%, after each charge in this period · it drops in cold weather and with BMS drift; not temperature-corrected</span></div><div id="battery-facts" class="tiles" style="margin-bottom:12px"></div><div id="chart-battery" class="chart"></div></div></div>
+                        <div class="panel wide"><div class="panel-body"><div class="chart-title"><span>Battery health</span><span class="hint" id="battery-hint">usable capacity measured by each charge in this period: kWh added ÷ battery % gained · it drops in cold weather and with BMS drift; not temperature-corrected</span></div><div id="battery-facts" class="tiles" style="margin-bottom:12px"></div><div id="chart-battery" class="chart"></div></div></div>
                         <div class="panel"><div class="panel-body"><div class="chart-title"><span>Where the time went</span><span class="hint" id="states-hint"></span></div><div id="states-share"></div><div id="states-legend" class="legend"></div><div id="standby" style="margin-top:14px"></div></div></div>
                         <div class="panel"><div class="panel-body"><div class="chart-title"><span>When you drive</span><span class="hint">trips started per weekday and hour</span></div><div id="rhythm"></div></div></div>
                         <div class="panel"><div class="panel-body"><div class="chart-title"><span>Most visited</span><span class="hint">trips ending there</span></div><div id="destinations" class="bars-list"></div></div></div>
